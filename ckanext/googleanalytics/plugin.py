@@ -25,6 +25,7 @@ class AnalyticsPostThread(threading.Thread):
     def __init__(self, queue):
         threading.Thread.__init__(self)
         self.queue = queue
+        self.ga_collection_url = pylons_config.get('googleanalytics.collection_url', 'https://www.google-analytics.com/collect')
 
     def run(self):
         while True:
@@ -39,7 +40,7 @@ class AnalyticsPostThread(threading.Thread):
                 'User-Agent':'Analytics Pros - Universal Analytics (Python)'
             }
             request = urllib2.Request(
-                "https://www.google-analytics.com/collect",
+                self.ga_collection_url,
                 data=data,
                 headers=headers
             )
