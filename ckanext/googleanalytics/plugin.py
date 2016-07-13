@@ -100,7 +100,6 @@ class GoogleAnalyticsPlugin(p.SingletonPlugin):
 
         '''
         if converters.asbool(config.get('ckan.legacy_templates', 'false')):
-            p.toolkit.add_template_directory(config, 'legacy_templates')
             p.toolkit.add_public_directory(config, 'legacy_public')
         else:
             p.toolkit.add_template_directory(config, 'templates')
@@ -161,20 +160,6 @@ class GoogleAnalyticsPlugin(p.SingletonPlugin):
             m.connect('/dataset/{id}/resource/{resource_id}/download/{filename}',
                     action='resource_download')
 
-        return map
-
-    def after_map(self, map):
-        '''Add new routes that this extension's controllers handle.
-
-        See IRoutes.
-
-        '''
-        map.redirect("/analytics/package/top", "/analytics/dataset/top")
-        map.connect(
-            'analytics', '/analytics/dataset/top',
-            controller='ckanext.googleanalytics.controller:GAController',
-            action='view'
-        )
         return map
 
     def filter(self, stream):

@@ -19,14 +19,6 @@ from ckan.controllers.package import PackageController
 
 log = logging.getLogger('ckanext.googleanalytics')
 
-
-class GAController(BaseController):
-    def view(self):
-        # get package objects corresponding to popular GA content
-        c.top_resources = dbutil.get_top_resources(limit=10)
-        return render('summary.html')
-
-
 class GAApiController(ApiController):
     # intercept API calls to record via google analytics
     def _post_analytics(
