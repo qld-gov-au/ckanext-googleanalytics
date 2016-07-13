@@ -1,7 +1,6 @@
 import logging
 import urllib
 import commands
-import dbutil
 import paste.deploy.converters as converters
 import genshi
 import pylons
@@ -229,8 +228,6 @@ class GoogleAnalyticsPlugin(p.SingletonPlugin):
                 for mark, (kind, data, pos) in stream:
                     if mark and kind == genshi.core.START:
                         href = data[1].get('href')
-                        if href:
-                            count = dbutil.get_resource_visits_for_url(href)
                     if count and mark is genshi.filters.transform.EXIT:
                         # emit count
                         yield genshi.filters.transform.INSIDE, (
