@@ -35,12 +35,16 @@ class AnalyticsPostThread(threading.Thread):
             data = urllib.urlencode(data_dict)
             log.debug("Sending API event to Google Analytics: " + data)
             # send analytics
-            urllib2.urlopen(
-                "http://www.google-analytics.com/collect",
-                data,
-                # timeout in seconds
-                # https://docs.python.org/2/library/urllib2.html#urllib2.urlopen
-                10)
+            headers= {
+                'Content-Type':'application/x-www-form-urlencoded',
+                'User-Agent':'Analytics Pros - Universal Analytics (Python)'
+            }
+            request = urllib2.Request(
+                "https://www.google-analytics.com/collect",
+                data=data,
+                headers=headers
+            )
+            response = urllib2.urlopen(request,timeout=10)
 
             # signals to queue job is done
             self.queue.task_done()
