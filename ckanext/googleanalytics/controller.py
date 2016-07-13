@@ -10,6 +10,7 @@ import ckan.logic as logic
 import hashlib
 import plugin
 from pylons import config
+import paste.deploy.converters as converters
 
 from webob.multidict import UnicodeMultiDict
 from paste.util.multidict import MultiDict
@@ -31,7 +32,7 @@ class GAApiController(ApiController):
     # intercept API calls to record via google analytics
     def _post_analytics(
             self, user, request_obj_type, request_function, request_id):
-        if config.get('googleanalytics.id'):
+        if config.get('googleanalytics.id') and converters.asbool(config.get('googleanalytics.track_backend_events','False')):
             data_dict = {
                 "v": 1,
                 "tid": config.get('googleanalytics.id'),
@@ -122,7 +123,7 @@ class GAResourceController(PackageController):
     # intercept API calls to record via google analytics
     def _post_analytics(
             self, user, request_obj_type, request_function, request_id):
-        if config.get('googleanalytics.id'):
+        if config.get('googleanalytics.id') and converters.asbool(config.get('googleanalytics.track_backend_events','False')):
             data_dict = {
                 "v": 1,
                 "tid": config.get('googleanalytics.id'),
