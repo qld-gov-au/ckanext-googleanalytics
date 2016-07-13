@@ -1,6 +1,5 @@
 import logging
 from ckan.lib.base import BaseController, c, render, request
-import dbutil
 
 import urllib
 import urllib2

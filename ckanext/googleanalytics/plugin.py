@@ -1,7 +1,6 @@
 import logging
 import urllib
 import commands
-import dbutil
 import paste.deploy.converters as converters
 import genshi
 import pylons
