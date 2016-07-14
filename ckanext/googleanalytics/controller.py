@@ -1,12 +1,7 @@
 import logging
-from ckan.lib.base import BaseController, c, render, request
-
-import urllib
-import urllib2
-
-import logging
-import ckan.logic as logic
 import hashlib
+from ckan.lib.base import BaseController, c, render, request
+import ckan.logic as logic
 import plugin
 from pylons import config
 import paste.deploy.converters as converters
@@ -23,7 +18,7 @@ class GAApiController(ApiController):
     # intercept API calls to record via google analytics
     def _post_analytics(
             self, user, request_obj_type, request_function, request_event_label, request_dict={}):
-        if config.get('googleanalytics.id') and converters.asbool(config.get('googleanalytics.track_backend_events','False')):
+        if config.get('googleanalytics.id') and converters.asbool(config.get('googleanalytics.track_backend_events', 'False')):
             data_dict = {
                 "v": 1,
                 "tid": config.get('googleanalytics.id'),
@@ -128,7 +123,7 @@ class GAResourceController(PackageController):
     # intercept API calls to record via google analytics
     def _post_analytics(
             self, user, request_obj_type, request_function, request_id):
-        if config.get('googleanalytics.id') and converters.asbool(config.get('googleanalytics.track_backend_events','False')):
+        if config.get('googleanalytics.id') and converters.asbool(config.get('googleanalytics.track_backend_events', 'False')):
             data_dict = {
                 "v": 1,
                 "tid": config.get('googleanalytics.id'),

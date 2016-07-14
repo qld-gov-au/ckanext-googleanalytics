@@ -1,19 +1,17 @@
 import logging
 import urllib
 import commands
+import urllib2
+import threading
+import Queue
 import paste.deploy.converters as converters
 import genshi
 import pylons
 import ckan.lib.helpers as h
 import ckan.plugins as p
-import gasnippet
-import pylons.config as pylons_config
+import ckanext.googleanalytics.gasnippet as gasnippet
 from routes.mapper import SubMapper, Mapper as _Mapper
 
-import urllib2
-
-import threading
-import Queue
 
 log = logging.getLogger('ckanext.googleanalytics')
 
@@ -25,7 +23,7 @@ class AnalyticsPostThread(threading.Thread):
     def __init__(self, queue):
         threading.Thread.__init__(self)
         self.queue = queue
-        self.ga_collection_url = pylons_config.get('googleanalytics.collection_url', 'https://www.google-analytics.com/collect')
+        self.ga_collection_url = pylons.config.get('googleanalytics.collection_url', 'https://www.google-analytics.com/collect')
 
     def run(self):
         while True:
@@ -35,7 +33,7 @@ class AnalyticsPostThread(threading.Thread):
             data = urllib.urlencode(data_dict)
             log.debug("Sending API event to Google Analytics: " + data)
             # send analytics
-            headers= {
+            headers = {
                 'Content-Type':'application/x-www-form-urlencoded',
                 'User-Agent':'Analytics Pros - Universal Analytics (Python)'
             }
@@ -44,7 +42,7 @@ class AnalyticsPostThread(threading.Thread):
                 data=data,
                 headers=headers
             )
-            response = urllib2.urlopen(request,timeout=10)
+            response = urllib2.urlopen(request, timeout=10)
 
             # signals to queue job is done
             self.queue.task_done()
@@ -70,16 +68,16 @@ class GoogleAnalyticsPlugin(p.SingletonPlugin):
             raise GoogleAnalyticsException(msg)
         self.googleanalytics_id = config['googleanalytics.id']
         self.googleanalytics_domain = config.get(
-                'googleanalytics.domain', 'auto')
+            'googleanalytics.domain', 'auto')
         self.googleanalytics_javascript_url = h.url_for_static(
-                '/scripts/ckanext-googleanalytics.js')
+            '/scripts/ckanext-googleanalytics.js')
 
         # If resource_prefix is not in config file then write the default value
         # to the config dict, otherwise templates seem to get 'true' when they
         # try to read resource_prefix from config.
         if 'googleanalytics_resource_prefix' not in config:
             config['googleanalytics_resource_prefix'] = (
-                    commands.DEFAULT_RESOURCE_URL_TAG)
+                commands.DEFAULT_RESOURCE_URL_TAG)
         self.googleanalytics_resource_prefix = config[
             'googleanalytics_resource_prefix']
 
@@ -106,7 +104,7 @@ class GoogleAnalyticsPlugin(p.SingletonPlugin):
         See IConfigurer.
 
         '''
-        if converters.asbool(config.get('googleanalytics.track_frontend_events','false')):
+        if converters.asbool(config.get('googleanalytics.track_frontend_events', 'false')):
             if converters.asbool(config.get('ckan.legacy_templates', 'false')):
                 p.toolkit.add_public_directory(config, 'legacy_public')
             else:
@@ -140,16 +138,15 @@ class GoogleAnalyticsPlugin(p.SingletonPlugin):
         ]
         register_list_str = '|'.join(register_list)
 
-        if converters.asbool(pylons_config.get('googleanalytics.track_backend_events', False)):
+        if converters.asbool(pylons.config.get('googleanalytics.track_backend_events', False)):
             # /api ver 3 or none
-            with SubMapper(map, controller='ckanext.googleanalytics.controller:GAApiController', path_prefix='/api{ver:/3|}',
-                        ver='/3') as m:
-                m.connect('/action/{logic_function}', action='action',
-                          conditions=GET_POST)
+            with SubMapper(map, controller='ckanext.googleanalytics.controller:GAApiController',
+                path_prefix='/api{ver:/3|}', ver='/3') as m:
+                m.connect('/action/{logic_function}', action='action', conditions=GET_POST)
 
             # /api ver 1, 2, 3 or none
             with SubMapper(map, controller='ckanext.googleanalytics.controller:GAApiController', path_prefix='/api{ver:/1|/2|/3|}',
-                           ver='/1') as m:
+                ver='/1') as m:
                 m.connect('/search/{register}', action='search')
 
             # /api/rest ver 1, 2 or none
@@ -183,21 +180,21 @@ class GoogleAnalyticsPlugin(p.SingletonPlugin):
 
         '''
         
-        if converters.asbool(pylons_config.get('googleanalytics.track_frontend_events', False)):
+        if converters.asbool(pylons.config.get('googleanalytics.track_frontend_events', False)):
             log.info("Inserting Google Analytics code into template")
             # Add the Google Analytics tracking code into the page header.
             header_code = genshi.HTML(gasnippet.header_code
                 % (self.googleanalytics_id, self.googleanalytics_domain))
             stream = stream | genshi.filters.Transformer('head').append(
-                    header_code)
+                header_code)
 
             # Add the Google Analytics Event Tracking script into the page footer.
             footer_code = genshi.HTML(
                 gasnippet.footer_code % self.googleanalytics_javascript_url)
             stream = stream | genshi.filters.Transformer(
-                    'body/div[@id="scripts"]').append(footer_code)
+                'body/div[@id="scripts"]').append(footer_code)
 
-        if converters.asbool(pylons_config.get('googleanalytics.track_backend_events', False)):
+        if converters.asbool(pylons.config.get('googleanalytics.track_backend_events', False)):
             routes = pylons.request.environ.get('pylons.routes_dict')
             action = routes.get('action')
             controller = routes.get('controller')
@@ -265,7 +262,7 @@ class GoogleAnalyticsPlugin(p.SingletonPlugin):
         templates in this extension, see ITemplateHelpers.
 
         '''
-        if converters.asbool(pylons_config.get('googleanalytics.track_frontend_events', False)):
+        if converters.asbool(pylons.config.get('googleanalytics.track_frontend_events', False)):
             data = {
                 'googleanalytics_id': self.googleanalytics_id,
                 'googleanalytics_domain': self.googleanalytics_domain
