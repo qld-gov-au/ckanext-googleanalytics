@@ -1,19 +1,17 @@
 import logging
 import urllib
 import commands
-import dbutil
+import urllib2
+import threading
+import Queue
 import paste.deploy.converters as converters
 import genshi
 import pylons
 import ckan.lib.helpers as h
 import ckan.plugins as p
-import gasnippet
+import ckanext.googleanalytics.gasnippet as gasnippet
 from routes.mapper import SubMapper, Mapper as _Mapper
 
-import urllib2
-
-import threading
-import Queue
 
 log = logging.getLogger('ckanext.googleanalytics')
 
@@ -25,6 +23,7 @@ class AnalyticsPostThread(threading.Thread):
     def __init__(self, queue):
         threading.Thread.__init__(self)
         self.queue = queue
+        self.ga_collection_url = pylons.config.get('googleanalytics.collection_url', 'https://www.google-analytics.com/collect')
 
     def run(self):
         while True:
@@ -34,12 +33,16 @@ class AnalyticsPostThread(threading.Thread):
             data = urllib.urlencode(data_dict)
             log.debug("Sending API event to Google Analytics: " + data)
             # send analytics
-            urllib2.urlopen(
-                "http://www.google-analytics.com/collect",
-                data,
-                # timeout in seconds
-                # https://docs.python.org/2/library/urllib2.html#urllib2.urlopen
-                10)
+            headers = {
+                'Content-Type':'application/x-www-form-urlencoded',
+                'User-Agent':'Analytics Pros - Universal Analytics (Python)'
+            }
+            request = urllib2.Request(
+                self.ga_collection_url,
+                data=data,
+                headers=headers
+            )
+            response = urllib2.urlopen(request, timeout=10)
 
             # signals to queue job is done
             self.queue.task_done()
@@ -65,23 +68,25 @@ class GoogleAnalyticsPlugin(p.SingletonPlugin):
             raise GoogleAnalyticsException(msg)
         self.googleanalytics_id = config['googleanalytics.id']
         self.googleanalytics_domain = config.get(
-                'googleanalytics.domain', 'auto')
+            'googleanalytics.domain', 'auto')
         self.googleanalytics_javascript_url = h.url_for_static(
-                '/scripts/ckanext-googleanalytics.js')
+            '/scripts/ckanext-googleanalytics.js')
 
         # If resource_prefix is not in config file then write the default value
         # to the config dict, otherwise templates seem to get 'true' when they
         # try to read resource_prefix from config.
         if 'googleanalytics_resource_prefix' not in config:
             config['googleanalytics_resource_prefix'] = (
-                    commands.DEFAULT_RESOURCE_URL_TAG)
+                commands.DEFAULT_RESOURCE_URL_TAG)
         self.googleanalytics_resource_prefix = config[
             'googleanalytics_resource_prefix']
 
         self.show_downloads = converters.asbool(
             config.get('googleanalytics.show_downloads', True))
-        self.track_events = converters.asbool(
-            config.get('googleanalytics.track_events', False))
+        self.track_frontend_events = converters.asbool(
+            config.get('googleanalytics.track_frontend_events', False))
+        self.track_backend_events = converters.asbool(
+            config.get('googleanalytics.track_backend_events', False))
 
         if not converters.asbool(config.get('ckan.legacy_templates', 'false')):
             p.toolkit.add_resource('fanstatic_library', 'ckanext-googleanalytics')
@@ -99,11 +104,11 @@ class GoogleAnalyticsPlugin(p.SingletonPlugin):
         See IConfigurer.
 
         '''
-        if converters.asbool(config.get('ckan.legacy_templates', 'false')):
-            p.toolkit.add_template_directory(config, 'legacy_templates')
-            p.toolkit.add_public_directory(config, 'legacy_public')
-        else:
-            p.toolkit.add_template_directory(config, 'templates')
+        if converters.asbool(config.get('googleanalytics.track_frontend_events', 'false')):
+            if converters.asbool(config.get('ckan.legacy_templates', 'false')):
+                p.toolkit.add_public_directory(config, 'legacy_public')
+            else:
+                p.toolkit.add_template_directory(config, 'templates')
 
     def before_map(self, map):
         '''Add new routes that this extension's controllers handle.
@@ -132,49 +137,36 @@ class GoogleAnalyticsPlugin(p.SingletonPlugin):
             'activity'
         ]
         register_list_str = '|'.join(register_list)
-        # /api ver 3 or none
-        with SubMapper(map, controller='ckanext.googleanalytics.controller:GAApiController', path_prefix='/api{ver:/3|}',
-                    ver='/3') as m:
-            m.connect('/action/{logic_function}', action='action',
-                      conditions=GET_POST)
 
-        # /api ver 1, 2, 3 or none
-        with SubMapper(map, controller='ckanext.googleanalytics.controller:GAApiController', path_prefix='/api{ver:/1|/2|/3|}',
-                       ver='/1') as m:
-            m.connect('/search/{register}', action='search')
+        if converters.asbool(pylons.config.get('googleanalytics.track_backend_events', False)):
+            # /api ver 3 or none
+            with SubMapper(map, controller='ckanext.googleanalytics.controller:GAApiController',
+                path_prefix='/api{ver:/3|}', ver='/3') as m:
+                m.connect('/action/{logic_function}', action='action', conditions=GET_POST)
 
-        # /api/rest ver 1, 2 or none
-        with SubMapper(map, controller='ckanext.googleanalytics.controller:GAApiController', path_prefix='/api{ver:/1|/2|}',
-                       ver='/1', requirements=dict(register=register_list_str)
-                       ) as m:
+            # /api ver 1, 2, 3 or none
+            with SubMapper(map, controller='ckanext.googleanalytics.controller:GAApiController', path_prefix='/api{ver:/1|/2|/3|}',
+                ver='/1') as m:
+                m.connect('/search/{register}', action='search')
 
-            m.connect('/rest/{register}', action='list', conditions=GET)
-            m.connect('/rest/{register}', action='create', conditions=POST)
-            m.connect('/rest/{register}/{id}', action='show', conditions=GET)
-            m.connect('/rest/{register}/{id}', action='update', conditions=PUT)
-            m.connect('/rest/{register}/{id}', action='update', conditions=POST)
-            m.connect('/rest/{register}/{id}', action='delete', conditions=DELETE)
+            # /api/rest ver 1, 2 or none
+            with SubMapper(map, controller='ckanext.googleanalytics.controller:GAApiController', path_prefix='/api{ver:/1|/2|}',
+                           ver='/1', requirements=dict(register=register_list_str)
+                           ) as m:
 
-        with SubMapper(map, controller='ckanext.googleanalytics.controller:GAResourceController') as m:
-            m.connect('/dataset/{id}/resource/{resource_id}/download',
-                    action='resource_download')
-            m.connect('/dataset/{id}/resource/{resource_id}/download/{filename}',
-                    action='resource_download')
+                m.connect('/rest/{register}', action='list', conditions=GET)
+                m.connect('/rest/{register}', action='create', conditions=POST)
+                m.connect('/rest/{register}/{id}', action='show', conditions=GET)
+                m.connect('/rest/{register}/{id}', action='update', conditions=PUT)
+                m.connect('/rest/{register}/{id}', action='update', conditions=POST)
+                m.connect('/rest/{register}/{id}', action='delete', conditions=DELETE)
 
-        return map
+            with SubMapper(map, controller='ckanext.googleanalytics.controller:GAResourceController') as m:
+                m.connect('/dataset/{id}/resource/{resource_id}/download',
+                        action='resource_download')
+                m.connect('/dataset/{id}/resource/{resource_id}/download/{filename}',
+                        action='resource_download')
 
-    def after_map(self, map):
-        '''Add new routes that this extension's controllers handle.
-
-        See IRoutes.
-
-        '''
-        map.redirect("/analytics/package/top", "/analytics/dataset/top")
-        map.connect(
-            'analytics', '/analytics/dataset/top',
-            controller='ckanext.googleanalytics.controller:GAController',
-            action='view'
-        )
         return map
 
     def filter(self, stream):
@@ -187,69 +179,70 @@ class GoogleAnalyticsPlugin(p.SingletonPlugin):
         See IGenshiStreamFilter.
 
         '''
-        log.info("Inserting Google Analytics code into template")
-
-        # Add the Google Analytics tracking code into the page header.
-        header_code = genshi.HTML(gasnippet.header_code
-            % (self.googleanalytics_id, self.googleanalytics_domain))
-        stream = stream | genshi.filters.Transformer('head').append(
+        
+        if converters.asbool(pylons.config.get('googleanalytics.track_frontend_events', False)):
+            log.info("Inserting Google Analytics code into template")
+            # Add the Google Analytics tracking code into the page header.
+            header_code = genshi.HTML(gasnippet.header_code
+                % (self.googleanalytics_id, self.googleanalytics_domain))
+            stream = stream | genshi.filters.Transformer('head').append(
                 header_code)
 
-        # Add the Google Analytics Event Tracking script into the page footer.
-        if self.track_events:
+            # Add the Google Analytics Event Tracking script into the page footer.
             footer_code = genshi.HTML(
                 gasnippet.footer_code % self.googleanalytics_javascript_url)
             stream = stream | genshi.filters.Transformer(
-                    'body/div[@id="scripts"]').append(footer_code)
+                'body/div[@id="scripts"]').append(footer_code)
 
-        routes = pylons.request.environ.get('pylons.routes_dict')
-        action = routes.get('action')
-        controller = routes.get('controller')
+        if converters.asbool(pylons.config.get('googleanalytics.track_backend_events', False)):
+            routes = pylons.request.environ.get('pylons.routes_dict')
+            action = routes.get('action')
+            controller = routes.get('controller')
 
-        if ((controller == 'package' and
-             action in ['search', 'read', 'resource_read']) or
-            (controller == 'group' and action == 'read')):
+            if ((controller == 'package' and
+                 action in ['search', 'read', 'resource_read']) or
+                (controller == 'group' and action == 'read')):
 
-            log.info("Tracking of resource downloads")
+                log.info("Tracking of resource downloads")
 
-            # add download tracking link
-            def js_attr(name, event):
-                attrs = event[1][1]
-                href = attrs.get('href').encode('utf-8')
-                link = '%s%s' % (self.googleanalytics_resource_prefix,
-                                 urllib.quote(href))
-                js = "javascript: _gaq.push(['_trackPageview', '%s']);" % link
-                return js
+                # add download tracking link
+                def js_attr(name, event):
+                    attrs = event[1][1]
+                    href = attrs.get('href').encode('utf-8')
+                    link = '%s%s' % (self.googleanalytics_resource_prefix,
+                                     urllib.quote(href))
+                    js = "javascript: _gaq.push(['_trackPageview', '%s']);" % link
+                    return js
 
-            # add some stats
-            def download_adder(stream):
-                download_html = '''<span class="downloads-count">
-                [downloaded %s times]</span>'''
-                count = None
-                for mark, (kind, data, pos) in stream:
-                    if mark and kind == genshi.core.START:
-                        href = data[1].get('href')
-                        if href:
-                            count = dbutil.get_resource_visits_for_url(href)
-                    if count and mark is genshi.filters.transform.EXIT:
-                        # emit count
-                        yield genshi.filters.transform.INSIDE, (
-                            genshi.core.TEXT,
-                            genshi.HTML(download_html % count), pos)
-                    yield mark, (kind, data, pos)
+                # add some stats
+                def download_adder(stream):
+                    download_html = '''<span class="downloads-count">
+                    [downloaded %s times]</span>'''
+                    count = None
+                    for mark, (kind, data, pos) in stream:
+                        if mark and kind == genshi.core.START:
+                            href = data[1].get('href')
+                            if href:
+                                count = dbutil.get_resource_visits_for_url(href)
+                        if count and mark is genshi.filters.transform.EXIT:
+                            # emit count
+                            yield genshi.filters.transform.INSIDE, (
+                                genshi.core.TEXT,
+                                genshi.HTML(download_html % count), pos)
+                        yield mark, (kind, data, pos)
 
-            # perform the stream transform
-            stream = stream | genshi.filters.Transformer(
-                '//a[contains(@class, "resource-url-analytics")]').attr(
-                    'onclick', js_attr)
-
-            if (self.show_downloads and action == 'read' and
-                controller == 'package'):
+                # perform the stream transform
                 stream = stream | genshi.filters.Transformer(
-                    '//a[contains(@class, "resource-url-analytics")]').apply(
-                        download_adder)
-                stream = stream | genshi.filters.Transformer('//head').append(
-                    genshi.HTML(gasnippet.download_style))
+                    '//a[contains(@class, "resource-url-analytics")]').attr(
+                        'onclick', js_attr)
+
+                if (self.show_downloads and action == 'read' and
+                    controller == 'package'):
+                    stream = stream | genshi.filters.Transformer(
+                        '//a[contains(@class, "resource-url-analytics")]').apply(
+                            download_adder)
+                    stream = stream | genshi.filters.Transformer('//head').append(
+                        genshi.HTML(gasnippet.download_style))
 
         return stream
 
@@ -269,7 +262,14 @@ class GoogleAnalyticsPlugin(p.SingletonPlugin):
         templates in this extension, see ITemplateHelpers.
 
         '''
-        data = {'googleanalytics_id': self.googleanalytics_id,
-                'googleanalytics_domain': self.googleanalytics_domain}
-        return p.toolkit.render_snippet(
-            'googleanalytics/snippets/googleanalytics_header.html', data)
+        if converters.asbool(pylons.config.get('googleanalytics.track_frontend_events', False)):
+            data = {
+                'googleanalytics_id': self.googleanalytics_id,
+                'googleanalytics_domain': self.googleanalytics_domain
+            }
+            return p.toolkit.render_snippet(
+                'googleanalytics/snippets/googleanalytics_header.html',
+                data
+            )
+        else:
+            return ''
