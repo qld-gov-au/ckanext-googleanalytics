@@ -28,7 +28,7 @@ class GAApiController(ApiController):
                 "dh": c.environ['HTTP_HOST'],
                 "dp": c.environ['PATH_INFO'],
                 "dr": c.environ.get('HTTP_REFERER', ''),
-                "ec": "CKAN API Request",
+                "ec": c.environ['HTTP_HOST'] + " CKAN API Request",
                 "ea": request_obj_type+request_function,
                 "el": request_event_label
             }
@@ -51,16 +51,18 @@ class GAApiController(ApiController):
             if isinstance(request_data, dict):
                 event_label = request_data.get('id', '')
                 if event_label == '':
-                    event_label = request_data.get('resource_id', '')
+                    if request_data.get('resource_id', '') != '':
+                        event_label = 'Resource Id: ' + request_data.get('resource_id', '')
                 if event_label == '' and 'q' in request_data:
-                    event_label = 'Query'
+                    event_label = 'Query: ' + request_data['q']
                 if event_label == '' and 'query' in request_data:
-                    event_label = 'Query'
+                    event_label = 'Query: ' + request_data['query']
                 if event_label == '' and 'sql' in request_data:
-                    event_label = 'SQL Query'
+                    event_label = 'SQL Query: ' + request_data['sql']
                 if event_label == '':
                     event_label = logic_function
-                self._post_analytics(c.user, logic_function, '', event_label, request_data)
+                request_obj_type = logic_function + ' - ' + c.environ['PATH_INFO']
+                self._post_analytics(c.user, request_obj_type, '', event_label, request_data)
         except Exception, e:
             log.debug(e)
             pass
@@ -133,7 +135,7 @@ class GAResourceController(PackageController):
                 "dh": c.environ['HTTP_HOST'],
                 "dp": c.environ['PATH_INFO'],
                 "dr": c.environ.get('HTTP_REFERER', ''),
-                "ec": "CKAN Resource Download Request",
+                "ec": c.environ['HTTP_HOST'] + " CKAN Resource Download Request",
                 "ea": request_obj_type+request_function,
                 "el": request_id,
             }
