@@ -1,6 +1,5 @@
 import logging
 import urllib
-import commands
 import urllib2
 import threading
 import Queue
@@ -14,6 +13,8 @@ from routes.mapper import SubMapper, Mapper as _Mapper
 
 
 log = logging.getLogger('ckanext.googleanalytics')
+
+DEFAULT_RESOURCE_URL_TAG = '/downloads/'
 
 class GoogleAnalyticsException(Exception):
     pass
@@ -77,7 +78,7 @@ class GoogleAnalyticsPlugin(p.SingletonPlugin):
         # try to read resource_prefix from config.
         if 'googleanalytics_resource_prefix' not in config:
             config['googleanalytics_resource_prefix'] = (
-                commands.DEFAULT_RESOURCE_URL_TAG)
+                DEFAULT_RESOURCE_URL_TAG)
         self.googleanalytics_resource_prefix = config[
             'googleanalytics_resource_prefix']
 
