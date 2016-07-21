@@ -15,6 +15,17 @@ from ckan.controllers.package import PackageController
 log = logging.getLogger('ckanext.googleanalytics')
 
 class GAApiController(ApiController):
+
+    def _alter_sql(self,sql_query):
+        '''Quick and dirty altering of sql to prevent injection'''
+        sql_query = sql_query.lower()
+        sql_query = sql_query.replace('select','CK_SEL')
+        sql_query = sql_query.replace('insert','CK_INS')
+        sql_query = sql_query.replace('update','CK_UPD')
+        sql_query = sql_query.replace('upsert','CK_UPS')
+        sql_query = sql_query.replace('declare','CK_DEC')
+        return sql_query
+
     # intercept API calls to record via google analytics
     def _post_analytics(
             self, user, request_obj_type, request_function, request_event_label, request_dict={}):
@@ -58,7 +69,8 @@ class GAApiController(ApiController):
                 if event_label == '' and 'query' in request_data:
                     event_label = 'Query: ' + request_data['query']
                 if event_label == '' and 'sql' in request_data:
-                    event_label = 'SQL Query: ' + request_data['sql']
+                    altered_sql = self._alter_sql(request_data['sql'])
+                    event_label = 'SQL Query: ' + altered_sql
                 if event_label == '':
                     event_label = logic_function
                 request_obj_type = logic_function + ' - ' + c.environ['PATH_INFO']
