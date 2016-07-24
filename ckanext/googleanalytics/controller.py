@@ -43,14 +43,6 @@ class GAApiController(ApiController):
                 "ea": request_obj_type+request_function,
                 "el": request_event_label
             }
-            #Rename keys in request_dict to not conflict with GA
-            request_dict_keys = request_dict.keys()
-            if len(request_dict_keys) > 0:
-                for request_key in request_dict_keys:
-                    prefix = 'ckan_'
-                    request_dict[prefix + request_key] = request_dict.pop(request_key)
-            data_dict.update(request_dict)
-                
             plugin.GoogleAnalyticsPlugin.analytics_queue.put(data_dict)
 
     def action(self, logic_function, ver=None):

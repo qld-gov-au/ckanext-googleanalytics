@@ -32,7 +32,7 @@ class AnalyticsPostThread(threading.Thread):
             data_dict = self.queue.get()
 
             data = urllib.urlencode(data_dict)
-            log.debug("Sending API event to Google Analytics: " + data)
+            log.debug("Sending API event to Google Analytics: " + data_dict['ea'])
             # send analytics
             headers = {
                 'Content-Type':'application/x-www-form-urlencoded',
