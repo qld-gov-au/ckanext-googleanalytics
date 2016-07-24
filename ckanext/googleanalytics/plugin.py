@@ -34,9 +34,10 @@ class AnalyticsPostThread(threading.Thread):
             data = urllib.urlencode(data_dict)
             log.debug("Sending API event to Google Analytics: " + data_dict['ea'])
             # send analytics
+            #User-Agent must be present, GA might ignore a custom UA
             headers = {
                 'Content-Type':'application/x-www-form-urlencoded',
-                'User-Agent':'Analytics Pros - Universal Analytics (Python)'
+                'User-Agent':'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:40.0) Gecko/20100101 Firefox/40.1'
             }
             request = urllib2.Request(
                 self.ga_collection_url,
