@@ -24,6 +24,7 @@ class GAApiController(ApiController):
         sql_query = sql_query.replace('update','CK_UPD')
         sql_query = sql_query.replace('upsert','CK_UPS')
         sql_query = sql_query.replace('declare','CK_DEC')
+        sql_query = sql_query[:450].strip()
         return sql_query
 
     # intercept API calls to record via google analytics
@@ -61,7 +62,8 @@ class GAApiController(ApiController):
                 if event_label == '' and 'query' in request_data:
                     event_label = 'Query: ' + request_data['query']
                 if event_label == '' and 'sql' in request_data:
-                    altered_sql = self._alter_sql(request_data['sql'])
+                    altered_sql = '%s' % request_data['sql']
+                    altered_sql = self._alter_sql(altered_sql)
                     event_label = 'SQL Query: ' + altered_sql
                 if event_label == '':
                     event_label = logic_function
