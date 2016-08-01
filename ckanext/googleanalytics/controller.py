@@ -65,10 +65,11 @@ class GAApiController(ApiController):
                     altered_sql = '%s' % request_data['sql']
                     altered_sql = self._alter_sql(altered_sql)
                     event_label = 'SQL Query: ' + altered_sql
-                if event_label == '':
-                    event_label = logic_function
-                request_obj_type = logic_function + ' - ' + c.environ['PATH_INFO']
-                self._post_analytics(c.user, request_obj_type, '', event_label, request_data)
+
+                #To reduce number of hits ignore other actions
+                if event_label != '':
+                    request_obj_type = logic_function + ' - ' + c.environ['PATH_INFO']
+                    self._post_analytics(c.user, request_obj_type, '', event_label, request_data)
         except Exception, e:
             log.debug(e)
             pass

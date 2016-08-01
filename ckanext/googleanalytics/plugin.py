@@ -38,7 +38,6 @@ class AnalyticsPostThread(threading.Thread):
 
             data = urllib.urlencode(data_dict)
             log.debug("Sending API event to Google Analytics: " + data_dict['ea'])
-            log.debug(headers)
             # send analytics
             #User-Agent must be present, GA might ignore a custom UA
             response = requests.post(self.ga_collection_url, data=data,headers=headers,timeout=5)
