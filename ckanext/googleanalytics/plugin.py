@@ -1,6 +1,7 @@
 import logging
 import urllib
-import urllib2
+import requests
+import json
 import threading
 import Queue
 import paste.deploy.converters as converters
@@ -27,25 +28,20 @@ class AnalyticsPostThread(threading.Thread):
         self.ga_collection_url = pylons.config.get('googleanalytics.collection_url', 'https://www.google-analytics.com/collect')
 
     def run(self):
+        headers = {
+            'Content-Type':'application/x-www-form-urlencoded',
+            'User-Agent':'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:40.0) Gecko/20100101 Firefox/40.1'
+        }
         while True:
             # grabs host from queue
             data_dict = self.queue.get()
 
             data = urllib.urlencode(data_dict)
             log.debug("Sending API event to Google Analytics: " + data_dict['ea'])
+            log.debug(headers)
             # send analytics
             #User-Agent must be present, GA might ignore a custom UA
-            headers = {
-                'Content-Type':'application/x-www-form-urlencoded',
-                'User-Agent':'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:40.0) Gecko/20100101 Firefox/40.1'
-            }
-            request = urllib2.Request(
-                self.ga_collection_url,
-                data=data,
-                headers=headers
-            )
-            response = urllib2.urlopen(request, timeout=10)
-
+            response = requests.post(self.ga_collection_url, data=data,headers=headers,timeout=5)
             # signals to queue job is done
             self.queue.task_done()
 
