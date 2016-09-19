@@ -36,11 +36,10 @@ class AnalyticsPostThread(threading.Thread):
         while True:
             # grabs host from queue
             data_dict = self.queue.get()
-            
-            data = urllib.urlencode(data_dict)
             log.debug("Sending API event to Google Analytics: " + data_dict['ea'])
             # send analytics
             try:
+                data = urllib.urlencode(data_dict)
                 response = requests.post(self.ga_collection_url, data=data,headers=headers,timeout=5)
                 # signals to queue job is done
                 self.queue.task_done()
@@ -51,7 +50,6 @@ class AnalyticsPostThread(threading.Thread):
 
 class GoogleAnalyticsPlugin(p.SingletonPlugin):
     p.implements(p.IConfigurable, inherit=True)
-    p.implements(p.IGenshiStreamFilter, inherit=True)
     p.implements(p.IRoutes, inherit=True)
     p.implements(p.IConfigurer, inherit=True)
     p.implements(p.ITemplateHelpers)
